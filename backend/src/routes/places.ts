@@ -1,8 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 
-import { mapboxGeocodingNearby, mapboxRetrievePlace } from "../services/mapbox";
-import { prisma } from "../db/prisma";
+import { overpassNearby } from "../services/overpass";
 import { haversineMeters } from "../utils/geo";
 
 export const placesRouter = Router();
@@ -17,16 +16,6 @@ const NearbyQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(50).default(25)
 });
 
-const CategoryToQuery: Record<
-  z.infer<typeof NearbyQuerySchema>["category"],
-  string
-> = {
-  cafe: "cafe",
-  museum: "museum",
-  park: "park",
-  attraction: "tourist attraction"
-};
-
 placesRouter.get("/nearby", async (req, res) => {
   const parsed = NearbyQuerySchema.safeParse(req.query);
   if (!parsed.success) {
@@ -40,26 +29,24 @@ placesRouter.get("/nearby", async (req, res) => {
   const { lat, lng, radius, category, limit } = parsed.data;
 
   try {
-    const geo = await mapboxGeocodingNearby({
+    const osm = await overpassNearby({
       lat,
       lng,
       radius,
-      limit,
-      query: CategoryToQuery[category]
+      category,
+      limit
     });
 
-    const places = geo.features
-      .map((f) => {
-        const [flng, flat] = f.geometry.coordinates;
-        const distance = haversineMeters(lat, lng, flat, flng);
-
+    const places = osm
+      .map((p) => {
+        const distance = haversineMeters(lat, lng, p.lat, p.lng);
         return {
-          id: f.properties.mapbox_id,
-          name: f.properties.name,
+          id: p.id,
+          name: p.name,
           category,
-          coordinates: { lat: flat, lng: flng },
+          coordinates: { lat: p.lat, lng: p.lng },
           distanceMeters: Math.round(distance),
-          address: f.properties.full_address ?? null
+          address: p.address
         };
       })
       .filter((p) => p.distanceMeters <= radius)
@@ -77,40 +64,11 @@ placesRouter.get("/:id", async (req, res) => {
   if (!id) return res.status(400).json({ ok: false, error: "Missing id" });
 
   try {
-    const place = await mapboxRetrievePlace(id);
-
-    const feature = place.features[0];
-    if (feature) {
-      const [lng, lat] = feature.geometry.coordinates;
-      const name = typeof feature.properties["name"] === "string" ? (feature.properties["name"] as string) : id;
-      const address =
-        typeof feature.properties["full_address"] === "string"
-          ? (feature.properties["full_address"] as string)
-          : null;
-
-      await prisma.placeCache.upsert({
-        where: { id },
-        create: {
-          id,
-          name,
-          category: "unknown",
-          lat,
-          lng,
-          address,
-          rawJson: JSON.stringify(place)
-        },
-        update: {
-          name,
-          lat,
-          lng,
-          address,
-          rawJson: JSON.stringify(place),
-          lastAccessedAt: new Date()
-        }
-      });
+    if (id.startsWith("osm:")) {
+      return res.json({ ok: true, place: null });
     }
 
-    return res.json({ ok: true, place });
+    return res.json({ ok: true, place: null });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Unknown error";
     return res.status(500).json({ ok: false, error: message });

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 
-import { mapboxDirections } from "../services/mapbox";
+import { osrmRoute } from "../services/osrm";
 
 export const routesRouter = Router();
 
@@ -24,7 +24,7 @@ routesRouter.get("/", async (req, res) => {
   }
 
   try {
-    const route = await mapboxDirections(parsed.data);
+    const route = await osrmRoute(parsed.data);
     return res.json({ ok: true, route });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Unknown error";

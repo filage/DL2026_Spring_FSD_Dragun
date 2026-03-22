@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
-  import mapboxgl from 'mapbox-gl';
+  import maplibregl from 'maplibre-gl';
   import { env } from '$env/dynamic/public';
   import { DEFAULT_API_BASE_URL } from '$lib/config';
   import { auth, authInit, apiFetch, logout, type AuthUser } from '$lib/auth';
@@ -24,8 +24,8 @@
   ];
 
   let mapEl: HTMLDivElement | null = $state(null);
-  let map: mapboxgl.Map | null = $state(null);
-  let userMarker: mapboxgl.Marker | null = $state(null);
+  let map: maplibregl.Map | null = $state(null);
+  let userMarker: maplibregl.Marker | null = $state(null);
 
   let category: Category = $state('cafe');
   let radius = $state(2000);
@@ -101,7 +101,6 @@
   let visits: VisitItem[] = $state([]);
 
   const apiBase = env.PUBLIC_API_BASE_URL || DEFAULT_API_BASE_URL;
-  const token = env.PUBLIC_MAPBOX_ACCESS_TOKEN;
 
   async function getUserLocation(): Promise<{ lat: number; lng: number }> {
     return await new Promise((resolve, reject) => {
@@ -220,20 +219,31 @@
     if (!mapEl) return;
     if (map) return;
 
-    if (!token) {
-      error = 'Не задан PUBLIC_MAPBOX_ACCESS_TOKEN. Создаи токен в Mapbox и добавь его в frontend/.env (см. frontend/.env.example).';
-      return;
-    }
-
-    mapboxgl.accessToken = token;
-    map = new mapboxgl.Map({
+    map = new maplibregl.Map({
       container: mapEl,
-      style: 'mapbox://styles/mapbox/streets-v12',
+      style: {
+        version: 8,
+        sources: {
+          osm: {
+            type: 'raster',
+            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          }
+        },
+        layers: [
+          {
+            id: 'osm',
+            type: 'raster',
+            source: 'osm'
+          }
+        ]
+      } as any,
       center: [37.6173, 55.7558],
       zoom: 12
     });
 
-    map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+    map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
     map.on('load', () => {
       if (!map) return;
@@ -288,14 +298,19 @@
         if (!map) return;
         const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
         const clusterId = features[0]?.properties?.cluster_id;
-        const source = map.getSource('places') as mapboxgl.GeoJSONSource;
+        const source = map.getSource('places') as maplibregl.GeoJSONSource;
 
         if (clusterId == null) return;
-        source.getClusterExpansionZoom(clusterId, (err, zoom) => {
-          if (err || !map) return;
-          const c = (features[0].geometry as any).coordinates as [number, number];
-          map.easeTo({ center: c, zoom: zoom ?? map.getZoom() });
-        });
+        void (async () => {
+          try {
+            const zoom = await source.getClusterExpansionZoom(clusterId);
+            if (!map) return;
+            const c = (features[0].geometry as any).coordinates as [number, number];
+            map.easeTo({ center: c, zoom: zoom ?? map.getZoom() });
+          } catch {
+            // ignore
+          }
+        })();
       });
 
       map.on('click', 'unclustered-point', (e) => {
@@ -339,7 +354,7 @@
 
   function updatePlacesOnMap() {
     if (!map) return;
-    const src = map.getSource('places') as mapboxgl.GeoJSONSource | undefined;
+    const src = map.getSource('places') as maplibregl.GeoJSONSource | undefined;
     if (!src) return;
 
     src.setData({
@@ -361,7 +376,7 @@
   function setUserMarker(lat: number, lng: number) {
     if (!map) return;
     userMarker?.remove();
-    userMarker = new mapboxgl.Marker({ color: '#2563eb' }).setLngLat([lng, lat]).addTo(map);
+    userMarker = new maplibregl.Marker({ color: '#2563eb' }).setLngLat([lng, lat]).addTo(map);
   }
 
   async function loadNearby() {
@@ -395,7 +410,7 @@
     selected = p;
     if (!map) return;
 
-    new mapboxgl.Popup({ closeOnClick: true })
+    new maplibregl.Popup({ closeOnClick: true })
       .setLngLat([p.coordinates.lng, p.coordinates.lat])
       .setHTML(
         `<div style="font-weight:600;margin-bottom:4px">${escapeHtml(p.name)}</div><div style="opacity:.8">${escapeHtml(p.address ?? '')}</div><div style="opacity:.8">${p.distanceMeters} м</div>`
@@ -416,7 +431,7 @@
       const json = await r.json();
       if (!r.ok || !json.ok) return;
 
-      const src = map.getSource('route') as mapboxgl.GeoJSONSource | undefined;
+      const src = map.getSource('route') as maplibregl.GeoJSONSource | undefined;
       if (!src) return;
 
       src.setData({
@@ -561,7 +576,7 @@
 </script>
 
 <svelte:head>
-  <link href="https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.css" rel="stylesheet" />
+  <link href="https://unpkg.com/maplibre-gl@5.7.3/dist/maplibre-gl.css" rel="stylesheet" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
   <link
