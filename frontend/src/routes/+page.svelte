@@ -860,11 +860,9 @@
     z-index: 20;
     display: grid;
     gap: 10px;
-    pointer-events: none;
   }
 
   .brand {
-    pointer-events: auto;
     display: flex;
     align-items: baseline;
     justify-content: space-between;
@@ -884,7 +882,6 @@
   }
 
   .pill {
-    pointer-events: auto;
     background: rgba(12, 16, 30, 0.72);
     border: 1px solid rgba(255, 255, 255, 0.10);
     border-radius: 18px;
