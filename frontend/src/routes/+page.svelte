@@ -23,20 +23,20 @@
     { id: 'attraction', label: 'Достопримечательности' }
   ];
 
-  let mapEl: HTMLDivElement | null = null;
-  let map: mapboxgl.Map | null = null;
-  let userMarker: mapboxgl.Marker | null = null;
+  let mapEl: HTMLDivElement | null = $state(null);
+  let map: mapboxgl.Map | null = $state(null);
+  let userMarker: mapboxgl.Marker | null = $state(null);
 
-  let category: Category = 'cafe';
-  let radius = 2000;
+  let category: Category = $state('cafe');
+  let radius = $state(2000);
 
-  let userLat: number | null = null;
-  let userLng: number | null = null;
+  let userLat: number | null = $state(null);
+  let userLng: number | null = $state(null);
 
-  let loading = false;
-  let error: string | null = null;
-  let places: Place[] = [];
-  let selected: Place | null = null;
+  let loading = $state(false);
+  let error: string | null = $state(null);
+  let places: Place[] = $state([]);
+  let selected: Place | null = $state(null);
 
   type Review = {
     id: string;
@@ -46,16 +46,16 @@
     user: { id: string; email: string; role: 'USER' | 'ADMIN' };
   };
 
-  let me: AuthUser | null = null;
+  let me: AuthUser | null = $state(null);
   const unsub = auth.subscribe((s) => {
     me = s.user;
   });
 
-  let reviewsLoading = false;
-  let reviewsError: string | null = null;
-  let reviews: Review[] = [];
-  let reviewRating = 5;
-  let reviewText = '';
+  let reviewsLoading = $state(false);
+  let reviewsError: string | null = $state(null);
+  let reviews: Review[] = $state([]);
+  let reviewRating = $state(5);
+  let reviewText = $state('');
 
   type FavoriteItem = {
     id: string;
@@ -86,13 +86,13 @@
     };
   };
 
-  let favoritesLoading = false;
-  let favoritesError: string | null = null;
-  let favorites: FavoriteItem[] = [];
+  let favoritesLoading = $state(false);
+  let favoritesError: string | null = $state(null);
+  let favorites: FavoriteItem[] = $state([]);
 
-  let visitsLoading = false;
-  let visitsError: string | null = null;
-  let visits: VisitItem[] = [];
+  let visitsLoading = $state(false);
+  let visitsError: string | null = $state(null);
+  let visits: VisitItem[] = $state([]);
 
   const apiBase = env.PUBLIC_API_BASE_URL || DEFAULT_API_BASE_URL;
   const token = env.PUBLIC_MAPBOX_ACCESS_TOKEN;
@@ -534,17 +534,24 @@
     }
   }
 
-  $: if (map) updatePlacesOnMap();
-  $: if (userLat != null && userLng != null) {
-    // keep marker synced
-    if (map) setUserMarker(userLat, userLng);
-  }
+  $effect(() => {
+    if (map) updatePlacesOnMap();
+  });
 
-  $: if (me) {
-    // keep user panels in sync when auth changes
-    void loadFavorites();
-    void loadVisits();
-  }
+  $effect(() => {
+    if (userLat != null && userLng != null && map) {
+      // keep marker synced
+      setUserMarker(userLat, userLng);
+    }
+  });
+
+  $effect(() => {
+    if (me) {
+      // keep user panels in sync when auth changes
+      void loadFavorites();
+      void loadVisits();
+    }
+  });
 </script>
 
 <svelte:head>
