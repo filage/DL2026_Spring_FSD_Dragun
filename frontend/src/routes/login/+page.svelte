@@ -4,7 +4,7 @@
 	import { DEFAULT_API_BASE_URL } from '$lib/config';
 	import { login } from '$lib/auth';
 
-	let email = '';
+	let username = '';
 	let password = '';
 	let loading = false;
 	let error: string | null = null;
@@ -15,7 +15,7 @@
 		loading = true;
 		error = null;
 		try {
-			await login(apiBase, email, password);
+			await login(apiBase, username, password);
 			await goto('/');
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Unknown error';
@@ -28,7 +28,6 @@
 <div class="page">
 	<div class="card">
 		<h1>Вход</h1>
-		<p class="muted">Войди, чтобы добавлять отзывы, избранное и историю.</p>
 
 		{#if error}
 			<div class="error">{error}</div>
@@ -36,8 +35,8 @@
 
 		<form on:submit|preventDefault={submit}>
 			<label>
-				Email
-				<input type="email" bind:value={email} autocomplete="email" required />
+				Ник
+				<input type="text" bind:value={username} autocomplete="username" required />
 			</label>
 			<label>
 				Пароль
@@ -75,11 +74,6 @@
 	h1 {
 		margin: 0;
 		font-size: 18px;
-	}
-	.muted {
-		margin: 0;
-		opacity: 0.75;
-		font-size: 13px;
 	}
 	form {
 		display: grid;

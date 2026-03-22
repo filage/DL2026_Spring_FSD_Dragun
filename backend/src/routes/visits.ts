@@ -45,3 +45,21 @@ visitsRouter.post("/", requireAuth, async (req, res) => {
 
   return res.json({ ok: true, visit });
 });
+
+visitsRouter.delete("/:placeId", requireAuth, async (req, res) => {
+  const parsed = z.object({ placeId: z.string().min(1) }).safeParse(req.params);
+  if (!parsed.success) {
+    return res.status(400).json({ ok: false, error: "Invalid params", details: parsed.error.flatten() });
+  }
+
+  const { placeId } = parsed.data;
+
+  const deleted = await prisma.visit.deleteMany({
+    where: {
+      userId: req.authUser!.id,
+      placeId
+    }
+  });
+
+  return res.json({ ok: true, deleted: deleted.count });
+});

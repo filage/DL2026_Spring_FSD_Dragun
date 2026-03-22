@@ -30,7 +30,10 @@ export async function osrmRoute(params: {
   url.searchParams.set("geometries", "geojson");
   url.searchParams.set("alternatives", "false");
 
-  const r = await fetch(url);
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), 12_000);
+  const r = await fetch(url, { signal: ac.signal });
+  clearTimeout(t);
   if (!r.ok) {
     throw new Error(`OSRM failed: ${r.status} ${r.statusText}`);
   }

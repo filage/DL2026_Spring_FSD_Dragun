@@ -9,7 +9,7 @@ import { requireAuth } from "../auth/middleware";
 export const authRouter = Router();
 
 const RegisterBodySchema = z.object({
-  email: z.string().email().max(320),
+  username: z.string().min(3).max(32),
   password: z.string().min(8).max(200)
 });
 
@@ -19,24 +19,24 @@ authRouter.post("/register", async (req, res) => {
     return res.status(400).json({ ok: false, error: "Invalid body", details: parsed.error.flatten() });
   }
 
-  const { email, password } = parsed.data;
+  const { username, password } = parsed.data;
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await prisma.user.findUnique({ where: { username } });
   if (existing) {
-    return res.status(409).json({ ok: false, error: "Email already in use" });
+    return res.status(409).json({ ok: false, error: "Username already in use" });
   }
 
   const passwordHash = await hashPassword(password);
   const user = await prisma.user.create({
-    data: { email, passwordHash }
+    data: { username, passwordHash }
   });
 
   const token = signAccessToken({ sub: user.id, role: user.role });
-  return res.json({ ok: true, token, user: { id: user.id, email: user.email, role: user.role } });
+  return res.json({ ok: true, token, user: { id: user.id, username: user.username, role: user.role } });
 });
 
 const LoginBodySchema = z.object({
-  email: z.string().email().max(320),
+  username: z.string().min(3).max(32),
   password: z.string().min(1).max(200)
 });
 
@@ -46,20 +46,20 @@ authRouter.post("/login", async (req, res) => {
     return res.status(400).json({ ok: false, error: "Invalid body", details: parsed.error.flatten() });
   }
 
-  const { email, password } = parsed.data;
+  const { username, password } = parsed.data;
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({ where: { username } });
   if (!user) {
-    return res.status(401).json({ ok: false, error: "Invalid credentials" });
+    return res.status(401).json({ ok: false, error: "Unknown username" });
   }
 
   const ok = await verifyPassword(password, user.passwordHash);
   if (!ok) {
-    return res.status(401).json({ ok: false, error: "Invalid credentials" });
+    return res.status(401).json({ ok: false, error: "Wrong password" });
   }
 
   const token = signAccessToken({ sub: user.id, role: user.role });
-  return res.json({ ok: true, token, user: { id: user.id, email: user.email, role: user.role } });
+  return res.json({ ok: true, token, user: { id: user.id, username: user.username, role: user.role } });
 });
 
 authRouter.get("/me", requireAuth, async (req, res) => {

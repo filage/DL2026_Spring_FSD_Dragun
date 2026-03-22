@@ -6,7 +6,7 @@ import { verifyAccessToken } from "./jwt";
 export type AuthUser = {
   id: string;
   role: "USER" | "ADMIN";
-  email: string;
+  username: string;
 };
 
 declare global {
@@ -32,14 +32,14 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
     const payload = verifyAccessToken(token);
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, email: true, role: true }
+      select: { id: true, username: true, role: true }
     });
 
     if (!user) {
       return res.status(401).json({ ok: false, error: "Unauthorized" });
     }
 
-    req.authUser = { id: user.id, email: user.email, role: user.role };
+    req.authUser = { id: user.id, username: user.username, role: user.role };
     return next();
   } catch {
     return res.status(401).json({ ok: false, error: "Unauthorized" });

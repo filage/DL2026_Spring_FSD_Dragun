@@ -4,23 +4,23 @@ import { prisma } from "../db/prisma";
 import { hashPassword } from "../auth/password";
 
 async function main() {
-  const email = process.env["ADMIN_EMAIL"];
+  const username = process.env["ADMIN_USERNAME"];
   const password = process.env["ADMIN_PASSWORD"];
 
-  if (!email || !password) {
-    throw new Error("ADMIN_EMAIL and ADMIN_PASSWORD must be set");
+  if (!username || !password) {
+    throw new Error("ADMIN_USERNAME and ADMIN_PASSWORD must be set");
   }
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await prisma.user.findUnique({ where: { username } });
   if (existing) {
-    await prisma.user.update({ where: { email }, data: { role: "ADMIN" } });
+    await prisma.user.update({ where: { username }, data: { role: "ADMIN" } });
     return;
   }
 
   const passwordHash = await hashPassword(password);
   await prisma.user.create({
     data: {
-      email,
+      username,
       passwordHash,
       role: "ADMIN"
     }

@@ -5,7 +5,7 @@ export type Role = 'USER' | 'ADMIN';
 
 export type AuthUser = {
 	id: string;
-	email: string;
+	username: string;
 	role: Role;
 };
 
@@ -61,27 +61,36 @@ export async function authInit(apiBase: string) {
 	}
 }
 
-export async function register(apiBase: string, email: string, password: string) {
+export async function register(apiBase: string, username: string, password: string) {
 	const r = await fetch(`${apiBase}/auth/register`, {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({ email, password })
+		body: JSON.stringify({ username, password })
 	});
 	const json = await r.json();
-	if (!r.ok || !json.ok) throw new Error(json.error ?? 'Register failed');
+	if (!r.ok || !json.ok) {
+		const e = String(json.error ?? 'Register failed');
+		if (e === 'Username already in use') throw new Error('Нельзя: этот логин уже занят.');
+		throw new Error(e);
+	}
 
 	writeToken(json.token as string);
 	auth.set({ token: json.token as string, user: json.user as AuthUser });
 }
 
-export async function login(apiBase: string, email: string, password: string) {
+export async function login(apiBase: string, username: string, password: string) {
 	const r = await fetch(`${apiBase}/auth/login`, {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({ email, password })
+		body: JSON.stringify({ username, password })
 	});
 	const json = await r.json();
-	if (!r.ok || !json.ok) throw new Error(json.error ?? 'Login failed');
+	if (!r.ok || !json.ok) {
+		const e = String(json.error ?? 'Login failed');
+		if (e === 'Wrong password') throw new Error('Пароль введен неверно.');
+		if (e === 'Unknown username') throw new Error('Пользователь не наиден.');
+		throw new Error(e);
+	}
 
 	writeToken(json.token as string);
 	auth.set({ token: json.token as string, user: json.user as AuthUser });

@@ -37,7 +37,7 @@ reviewsRouter.post("/", requireAuth, async (req, res) => {
       rating: true,
       text: true,
       createdAt: true,
-      user: { select: { id: true, email: true, role: true } }
+      user: { select: { id: true, username: true, role: true } }
     }
   });
 
@@ -56,7 +56,7 @@ reviewsRouter.get("/place/:placeId", async (req, res) => {
       rating: true,
       text: true,
       createdAt: true,
-      user: { select: { id: true, email: true, role: true } }
+      user: { select: { id: true, username: true, role: true } }
     }
   });
 
