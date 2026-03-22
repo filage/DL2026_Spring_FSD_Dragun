@@ -27,7 +27,7 @@ const MapboxRetrieveResponseSchema = z.object({
         type: z.literal("Point"),
         coordinates: z.tuple([z.number(), z.number()])
       }),
-      properties: z.record(z.unknown())
+      properties: z.record(z.string(), z.unknown())
     })
   )
 });
