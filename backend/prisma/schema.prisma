@@ -4,12 +4,28 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "sqlite"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now())
+
+  visits       Visit[]
+  favorites    Favorite[]
+  reviews      Review[]
 }
 
 model PlaceCache {
@@ -30,35 +46,44 @@ model PlaceCache {
 
 model Visit {
   id        String   @id @default(cuid())
+  userId    String
   placeId   String
   visitedAt DateTime @default(now())
   notes     String?
 
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   place     PlaceCache @relation(fields: [placeId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@index([placeId])
   @@index([visitedAt])
 }
 
 model Favorite {
   id        String   @id @default(cuid())
+  userId    String
   placeId   String
   createdAt DateTime @default(now())
 
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   place     PlaceCache @relation(fields: [placeId], references: [id], onDelete: Cascade)
 
-  @@unique([placeId])
+  @@unique([userId, placeId])
+  @@index([userId])
 }
 
 model Review {
   id        String   @id @default(cuid())
+  userId    String
   placeId   String
   rating    Int
   text      String
   createdAt DateTime @default(now())
 
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   place     PlaceCache @relation(fields: [placeId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@index([placeId])
   @@index([createdAt])
 }

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { mapboxGeocodingNearby, mapboxRetrievePlace } from "../services/mapbox";
+import { prisma } from "../db/prisma";
 import { haversineMeters } from "../utils/geo";
 
 export const placesRouter = Router();
@@ -77,6 +78,38 @@ placesRouter.get("/:id", async (req, res) => {
 
   try {
     const place = await mapboxRetrievePlace(id);
+
+    const feature = place.features[0];
+    if (feature) {
+      const [lng, lat] = feature.geometry.coordinates;
+      const name = typeof feature.properties["name"] === "string" ? (feature.properties["name"] as string) : id;
+      const address =
+        typeof feature.properties["full_address"] === "string"
+          ? (feature.properties["full_address"] as string)
+          : null;
+
+      await prisma.placeCache.upsert({
+        where: { id },
+        create: {
+          id,
+          name,
+          category: "unknown",
+          lat,
+          lng,
+          address,
+          rawJson: JSON.stringify(place)
+        },
+        update: {
+          name,
+          lat,
+          lng,
+          address,
+          rawJson: JSON.stringify(place),
+          lastAccessedAt: new Date()
+        }
+      });
+    }
+
     return res.json({ ok: true, place });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Unknown error";
