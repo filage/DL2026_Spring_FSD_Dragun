@@ -288,10 +288,11 @@
     })();
 
     inflightNearby = { ...inflightNearby, [params.cacheKey]: p };
-    void p.finally(() => {
+    const cleanup = p.finally(() => {
       const { [params.cacheKey]: _removed, ...rest } = inflightNearby;
       inflightNearby = rest;
     });
+    void cleanup.catch(() => {});
 
     return p;
   }
@@ -322,14 +323,20 @@
 
           const ac = new AbortController();
           const t = window.setTimeout(() => ac.abort(), 10_000);
-          const r = await fetch(url, { signal: ac.signal });
-          window.clearTimeout(t);
-          const json = await r.json();
-          if (!r.ok || !json.ok) return;
-          const ps = json.places as Place[];
-          nearbyCache = { ...nearbyCache, [key]: { ts: Date.now(), places: ps } };
+          try {
+            const r = await fetch(url, { signal: ac.signal });
+            const json = await r.json();
+            if (!r.ok || !json.ok) return;
+            const ps = json.places as Place[];
+            nearbyCache = { ...nearbyCache, [key]: { ts: Date.now(), places: ps } };
+          } catch (e) {
+            if (e instanceof DOMException && e.name === 'AbortError') return;
+            return;
+          } finally {
+            window.clearTimeout(t);
+          }
         } catch {
-          // ignore
+          // ignore prefetch errors
         }
       });
 
