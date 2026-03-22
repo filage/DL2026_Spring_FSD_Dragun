@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "google-maps-api": {
+      "source": "tivojn/google-maps-api-skill",
+      "sourceType": "github",
+      "computedHash": "dbf53b2538de480135a45827f6da7a65c8ee47b4e1fb62259b5ce18e14f8967d"
+    }
+  }
+}

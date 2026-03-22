@@ -1,0 +1,64 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model PlaceCache {
+  id            String   @id
+  name          String
+  category      String
+  lat           Float
+  lng           Float
+  address       String?
+  rawJson       String
+  fetchedAt     DateTime @default(now())
+  lastAccessedAt DateTime @default(now())
+
+  visits        Visit[]
+  favorites     Favorite[]
+  reviews       Review[]
+}
+
+model Visit {
+  id        String   @id @default(cuid())
+  placeId   String
+  visitedAt DateTime @default(now())
+  notes     String?
+
+  place     PlaceCache @relation(fields: [placeId], references: [id], onDelete: Cascade)
+
+  @@index([placeId])
+  @@index([visitedAt])
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  placeId   String
+  createdAt DateTime @default(now())
+
+  place     PlaceCache @relation(fields: [placeId], references: [id], onDelete: Cascade)
+
+  @@unique([placeId])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  placeId   String
+  rating    Int
+  text      String
+  createdAt DateTime @default(now())
+
+  place     PlaceCache @relation(fields: [placeId], references: [id], onDelete: Cascade)
+
+  @@index([placeId])
+  @@index([createdAt])
+}

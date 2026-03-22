@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Build outputs
+frontend/.svelte-kit/
+frontend/build/
+backend/dist/
+backend/generated/
+backend/generated/prisma/
+
+# Prisma
+backend/dev.db
+backend/dev.db-journal
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+
+# Local agent/IDE folders
+.agents/
+.windsurf/
+
+# OS
+.DS_Store
+Thumbs.db
