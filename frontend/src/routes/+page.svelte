@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import mapboxgl from 'mapbox-gl';
-  import { PUBLIC_API_BASE_URL, PUBLIC_MAPBOX_ACCESS_TOKEN } from '$env/static/public';
+  import { env } from '$env/dynamic/public';
   import { DEFAULT_API_BASE_URL } from '$lib/config';
+  import { auth, authInit, apiFetch, logout, type AuthUser } from '$lib/auth';
 
   type Category = 'cafe' | 'museum' | 'park' | 'attraction';
 
@@ -37,8 +38,27 @@
   let places: Place[] = [];
   let selected: Place | null = null;
 
-  const apiBase = PUBLIC_API_BASE_URL || DEFAULT_API_BASE_URL;
-  const token = PUBLIC_MAPBOX_ACCESS_TOKEN;
+  type Review = {
+    id: string;
+    rating: number;
+    text: string;
+    createdAt: string;
+    user: { id: string; email: string; role: 'USER' | 'ADMIN' };
+  };
+
+  let me: AuthUser | null = null;
+  const unsub = auth.subscribe((s) => {
+    me = s.user;
+  });
+
+  let reviewsLoading = false;
+  let reviewsError: string | null = null;
+  let reviews: Review[] = [];
+  let reviewRating = 5;
+  let reviewText = '';
+
+  const apiBase = env.PUBLIC_API_BASE_URL || DEFAULT_API_BASE_URL;
+  const token = env.PUBLIC_MAPBOX_ACCESS_TOKEN;
 
   async function getUserLocation(): Promise<{ lat: number; lng: number }> {
     return await new Promise((resolve, reject) => {
@@ -128,7 +148,7 @@
         source.getClusterExpansionZoom(clusterId, (err, zoom) => {
           if (err || !map) return;
           const c = (features[0].geometry as any).coordinates as [number, number];
-          map.easeTo({ center: c, zoom });
+          map.easeTo({ center: c, zoom: zoom ?? map.getZoom() });
         });
       });
 
@@ -284,6 +304,8 @@
   onMount(async () => {
     ensureMap();
 
+    await authInit(apiBase);
+
     try {
       const loc = await getUserLocation();
       userLat = loc.lat;
@@ -302,9 +324,68 @@
   });
 
   onDestroy(() => {
+    unsub();
     userMarker?.remove();
     map?.remove();
   });
+
+  async function loadReviews(placeId: string) {
+    reviewsLoading = true;
+    reviewsError = null;
+    try {
+      const r = await fetch(`${apiBase}/reviews/place/${encodeURIComponent(placeId)}`);
+      const json = await r.json();
+      if (!r.ok || !json.ok) throw new Error(json.error ?? 'Failed to load reviews');
+      reviews = json.reviews as Review[];
+    } catch (e) {
+      reviewsError = e instanceof Error ? e.message : 'Unknown error';
+      reviews = [];
+    } finally {
+      reviewsLoading = false;
+    }
+  }
+
+  async function submitReview() {
+    if (!selected) return;
+    if (!me) {
+      reviewsError = 'Нужно войти, чтобы оставить отзыв.';
+      return;
+    }
+
+    reviewsLoading = true;
+    reviewsError = null;
+    try {
+      const r = await apiFetch(apiBase, '/reviews', {
+        method: 'POST',
+        body: JSON.stringify({ placeId: selected.id, rating: reviewRating, text: reviewText })
+      });
+      const json = await r.json();
+      if (!r.ok || !json.ok) throw new Error(json.error ?? 'Failed to create review');
+
+      reviewText = '';
+      await loadReviews(selected.id);
+    } catch (e) {
+      reviewsError = e instanceof Error ? e.message : 'Unknown error';
+    } finally {
+      reviewsLoading = false;
+    }
+  }
+
+  async function deleteReview(id: string) {
+    if (!me) return;
+    reviewsLoading = true;
+    reviewsError = null;
+    try {
+      const r = await apiFetch(apiBase, `/reviews/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const json = await r.json();
+      if (!r.ok || !json.ok) throw new Error(json.error ?? 'Failed to delete review');
+      if (selected) await loadReviews(selected.id);
+    } catch (e) {
+      reviewsError = e instanceof Error ? e.message : 'Unknown error';
+    } finally {
+      reviewsLoading = false;
+    }
+  }
 
   $: if (map) updatePlacesOnMap();
   $: if (userLat != null && userLng != null) {
@@ -360,7 +441,7 @@
   {/if}
 
   <main class="content">
-    <div class="map" bind:this={mapEl} />
+    <div class="map" bind:this={mapEl}></div>
 
     <aside class="side">
       <div class="panel">
@@ -381,6 +462,31 @@
       </div>
 
       <div class="panel">
+        <div class="panelTitle">Аккаунт</div>
+        {#if me}
+          <div class="selected">
+            <div class="name">{me.email}</div>
+            <div class="meta">Роль: {me.role}</div>
+            <div class="actions">
+              <button
+                on:click={() => {
+                  logout();
+                }}
+              >
+                Выйти
+              </button>
+            </div>
+          </div>
+        {:else}
+          <div class="empty">Чтобы добавлять отзывы и сохранять места, нужно войти.</div>
+          <div class="actions">
+            <a class="linkBtn" href="/login">Вход</a>
+            <a class="linkBtn" href="/register">Регистрация</a>
+          </div>
+        {/if}
+      </div>
+
+      <div class="panel">
         <div class="panelTitle">Выбрано</div>
         {#if selected}
           <div class="selected">
@@ -392,6 +498,59 @@
             <div class="actions">
               <button on:click={speakSelected}>Гид (аудио)</button>
             </div>
+          </div>
+
+          <div class="reviews">
+            <div class="panelTitle">Отзывы</div>
+            {#if reviewsError}
+              <div class="error">{reviewsError}</div>
+            {/if}
+
+            {#if reviewsLoading}
+              <div class="empty">Загрузка…</div>
+            {:else}
+              {#if reviews.length === 0}
+                <div class="empty">Пока нет отзывов.</div>
+              {:else}
+                <div class="reviewList">
+                  {#each reviews as r (r.id)}
+                    <div class="review">
+                      <div class="reviewTop">
+                        <div class="reviewMeta">
+                          <div class="name">{r.user.email}</div>
+                          <div class="meta">Оценка: {r.rating} / 5</div>
+                        </div>
+                        {#if me && (me.role === 'ADMIN' || me.id === r.user.id)}
+                          <button class="danger" on:click={() => deleteReview(r.id)}>Удалить</button>
+                        {/if}
+                      </div>
+                      <div class="addr">{r.text}</div>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+
+              <div class="reviewForm">
+                <div class="meta">Добавить отзыв</div>
+                {#if me}
+                  <div class="row">
+                    <label>
+                      Оценка
+                      <input type="number" min="1" max="5" step="1" bind:value={reviewRating} />
+                    </label>
+                  </div>
+                  <label>
+                    Текст
+                    <textarea rows="3" bind:value={reviewText}></textarea>
+                  </label>
+                  <button disabled={reviewsLoading || reviewText.trim().length === 0} on:click={submitReview}>
+                    Отправить
+                  </button>
+                {:else}
+                  <div class="empty">Войди, чтобы оставить отзыв.</div>
+                {/if}
+              </div>
+            {/if}
           </div>
         {:else}
           <div class="empty">Нажми на место на карте или в списке.</div>
@@ -536,5 +695,64 @@
     display: flex;
     gap: 8px;
     margin-top: 6px;
+  }
+
+  .linkBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 12px;
+    border-radius: 12px;
+    text-decoration: none;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #e5e7eb;
+    font-size: 13px;
+  }
+
+  textarea {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #e5e7eb;
+    padding: 10px 12px;
+    border-radius: 12px;
+    resize: vertical;
+  }
+
+  .reviews {
+    margin-top: 10px;
+    display: grid;
+    gap: 10px;
+  }
+
+  .reviewList {
+    display: grid;
+    gap: 10px;
+  }
+
+  .review {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    padding: 10px;
+    display: grid;
+    gap: 6px;
+  }
+
+  .reviewTop {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: start;
+  }
+
+  .danger {
+    background: rgba(239, 68, 68, 0.18);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+  }
+
+  .reviewForm {
+    display: grid;
+    gap: 8px;
   }
 </style>
