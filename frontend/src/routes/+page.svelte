@@ -30,6 +30,8 @@
   let category: Category = $state('cafe');
   let radius = $state(2000);
 
+  let drawer: 'none' | 'places' | 'favorites' | 'history' = $state('none');
+
   let userLat: number | null = $state(null);
   let userLng: number | null = $state(null);
 
@@ -37,6 +39,10 @@
   let error: string | null = $state(null);
   let places: Place[] = $state([]);
   let selected: Place | null = $state(null);
+
+  function openDrawer(kind: typeof drawer) {
+    drawer = drawer === kind ? 'none' : kind;
+  }
 
   type Review = {
     id: string;
@@ -556,21 +562,34 @@
 
 <svelte:head>
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.css" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Fraunces:opsz,wght@9..144,600&display=swap"
+    rel="stylesheet"
+  />
 </svelte:head>
 
-<div class="page">
-  <header class="topbar">
-    <div class="title">
-      <div class="h1">GeoGuide</div>
-      <div class="h2">Ближайшие места рядом с тобои</div>
+<div class="app">
+  <div class="map" bind:this={mapEl}></div>
+
+  {#if error}
+    <div class="toast" role="alert">{error}</div>
+  {/if}
+
+  <div class="top">
+    <div class="brand">
+      <div class="logo">GeoGuide</div>
+      <div class="sub">Гид по местам рядом с тобои</div>
     </div>
 
-    <div class="controls">
-      <div class="row">
+    <div class="pill">
+      <div class="segmented" aria-label="Категория">
         {#each categories as c}
           <button
-            class:selected={category === c.id}
-            on:click={async () => {
+            class:active={category === c.id}
+            type="button"
+            onclick={async () => {
               category = c.id;
               await loadNearby();
             }}
@@ -579,91 +598,96 @@
           </button>
         {/each}
       </div>
-      <div class="row">
-        <label>
-          Радиус (м)
+
+      <div class="controls">
+        <label class="field">
+          <span>Радиус</span>
           <input
-            type="number"
+            type="range"
             min="250"
-            max="50000"
+            max="5000"
             step="250"
             bind:value={radius}
-            on:change={loadNearby}
+            onchange={loadNearby}
           />
+          <b>{radius} м</b>
         </label>
-        <button on:click={loadNearby} disabled={loading || userLat == null}>Обновить</button>
-      </div>
-    </div>
-  </header>
 
-  {#if error}
-    <div class="error">{error}</div>
-  {/if}
+        <button class="primary" type="button" onclick={loadNearby} disabled={loading || userLat == null}>
+          {loading ? 'Ищем…' : 'Обновить'}
+        </button>
 
-  <main class="content">
-    <div class="map" bind:this={mapEl}></div>
+        <button class="ghost" type="button" onclick={() => openDrawer('places')}>Места</button>
+        <button class="ghost" type="button" onclick={() => openDrawer('favorites')} disabled={!me}>
+          Избранное
+        </button>
+        <button class="ghost" type="button" onclick={() => openDrawer('history')} disabled={!me}>
+          История
+        </button>
 
-    <aside class="side">
-      <div class="panel">
-        <div class="panelTitle">Рядом</div>
-        <div class="panelSubtitle">Найдено: {places.length}</div>
-
-        <div class="list">
-          {#each places as p (p.id)}
-            <button class:selected={selected?.id === p.id} on:click={() => selectPlace(p)}>
-              <div class="name">{p.name}</div>
-              <div class="meta">{p.distanceMeters} м</div>
-              {#if p.address}
-                <div class="addr">{p.address}</div>
-              {/if}
-            </button>
-          {/each}
+        <div class="account">
+          {#if me}
+            <button class="ghost" type="button" onclick={logout}>Выйти</button>
+          {:else}
+            <a class="ghost link" href="/login">Вход</a>
+            <a class="ghost link" href="/register">Регистрация</a>
+          {/if}
         </div>
       </div>
+    </div>
+  </div>
 
-      <div class="panel">
-        <div class="panelTitle">Аккаунт</div>
-        {#if me}
-          <div class="selected">
-            <div class="name">{me.email}</div>
-            <div class="meta">Роль: {me.role}</div>
-            <div class="actions">
-              <button
-                on:click={() => {
-                  logout();
-                }}
-              >
-                Выйти
-              </button>
-            </div>
-          </div>
-        {:else}
-          <div class="empty">Чтобы добавлять отзывы и сохранять места, нужно войти.</div>
-          <div class="actions">
-            <a class="linkBtn" href="/login">Вход</a>
-            <a class="linkBtn" href="/register">Регистрация</a>
-          </div>
-        {/if}
+  {#if drawer !== 'none'}
+    <button class="scrim" type="button" aria-label="Закрыть" onclick={() => (drawer = 'none')}></button>
+    <section class="drawer" aria-label="Список">
+      <div class="drawerHead">
+        <div class="drawerTitle">
+          {drawer === 'places' ? 'Места рядом' : drawer === 'favorites' ? 'Избранное' : 'История'}
+        </div>
+        <button class="ghost" type="button" onclick={() => (drawer = 'none')}>Закрыть</button>
       </div>
 
-      <div class="panel">
-        <div class="panelTitle">Избранное</div>
-        {#if favoritesError}
-          <div class="error">{favoritesError}</div>
-        {/if}
-        {#if !me}
-          <div class="empty">Войди, чтобы видеть избранное.</div>
-        {:else if favoritesLoading}
-          <div class="empty">Загрузка…</div>
-        {:else}
-          {#if favorites.length === 0}
-            <div class="empty">Пока пусто.</div>
+      {#if drawer === 'places'}
+        <div class="drawerBody">
+          {#if places.length === 0}
+            <div class="muted">Пока пусто. Нажми "Обновить".</div>
+          {:else}
+            <div class="list">
+              {#each places as p (p.id)}
+                <button
+                  class:selected={selected?.id === p.id}
+                  type="button"
+                  onclick={() => {
+                    selectPlace(p);
+                    drawer = 'none';
+                  }}
+                >
+                  <div class="name">{p.name}</div>
+                  <div class="meta">{p.distanceMeters} м</div>
+                  {#if p.address}
+                    <div class="addr">{p.address}</div>
+                  {/if}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {:else if drawer === 'favorites'}
+        <div class="drawerBody">
+          {#if favoritesError}
+            <div class="toast" role="alert">{favoritesError}</div>
+          {/if}
+          {#if favoritesLoading}
+            <div class="muted">Загрузка…</div>
+          {:else if favorites.length === 0}
+            <div class="muted">Пока пусто.</div>
           {:else}
             <div class="list">
               {#each favorites as f (f.id)}
                 <button
                   class:selected={selected?.id === f.place.id}
-                  on:click={() =>
+                  type="button"
+                  onclick={() => {
                     selectPlace({
                       id: f.place.id,
                       name: f.place.name,
@@ -671,7 +695,9 @@
                       coordinates: { lat: f.place.lat, lng: f.place.lng },
                       distanceMeters: 0,
                       address: f.place.address
-                    })}
+                    });
+                    drawer = 'none';
+                  }}
                 >
                   <div class="name">{f.place.name}</div>
                   {#if f.place.address}
@@ -681,27 +707,23 @@
               {/each}
             </div>
           {/if}
-        {/if}
-      </div>
-
-      <div class="panel">
-        <div class="panelTitle">История</div>
-        {#if visitsError}
-          <div class="error">{visitsError}</div>
-        {/if}
-        {#if !me}
-          <div class="empty">Войди, чтобы видеть историю.</div>
-        {:else if visitsLoading}
-          <div class="empty">Загрузка…</div>
-        {:else}
-          {#if visits.length === 0}
-            <div class="empty">Пока пусто.</div>
+        </div>
+      {:else}
+        <div class="drawerBody">
+          {#if visitsError}
+            <div class="toast" role="alert">{visitsError}</div>
+          {/if}
+          {#if visitsLoading}
+            <div class="muted">Загрузка…</div>
+          {:else if visits.length === 0}
+            <div class="muted">Пока пусто.</div>
           {:else}
             <div class="list">
               {#each visits as v (v.id)}
                 <button
                   class:selected={selected?.id === v.place.id}
-                  on:click={() =>
+                  type="button"
+                  onclick={() => {
                     selectPlace({
                       id: v.place.id,
                       name: v.place.name,
@@ -709,7 +731,9 @@
                       coordinates: { lat: v.place.lat, lng: v.place.lng },
                       distanceMeters: 0,
                       address: v.place.address
-                    })}
+                    });
+                    drawer = 'none';
+                  }}
                 >
                   <div class="name">{v.place.name}</div>
                   <div class="meta">{new Date(v.visitedAt).toLocaleString()}</div>
@@ -717,262 +741,411 @@
               {/each}
             </div>
           {/if}
-        {/if}
+        </div>
+      {/if}
+    </section>
+  {/if}
+
+  {#if selected}
+    <section class="sheet" aria-label="Выбрано">
+      <div class="sheetTop">
+        <div>
+          <div class="sheetTitle">{selected.name}</div>
+          <div class="sheetMeta">
+            {#if selected.address}{selected.address}{/if}
+            {#if selected.distanceMeters > 0}
+              <span>· {selected.distanceMeters} м</span>
+            {/if}
+          </div>
+        </div>
+        <button class="ghost" type="button" onclick={() => (selected = null)}>Закрыть</button>
       </div>
 
-      <div class="panel">
-        <div class="panelTitle">Выбрано</div>
-        {#if selected}
-          <div class="selected">
-            <div class="name">{selected.name}</div>
-            <div class="meta">{selected.distanceMeters} м</div>
-            {#if selected.address}
-              <div class="addr">{selected.address}</div>
-            {/if}
-            <div class="actions">
-              <button on:click={speakSelected}>Гид (аудио)</button>
-              <button on:click={toggleFavorite} disabled={!me || favoritesLoading}>
-                {isSelectedFavorite() ? 'Убрать из избранного' : 'В избранное'}
-              </button>
-              <button on:click={addVisit} disabled={!me || visitsLoading}>Отметить посещение</button>
-            </div>
-          </div>
+      <div class="sheetActions">
+        <button class="primary" type="button" onclick={speakSelected}>Аудио гид</button>
+        <button class="ghost" type="button" onclick={toggleFavorite} disabled={!me || favoritesLoading}>
+          {isSelectedFavorite() ? 'Убрать из избранного' : 'В избранное'}
+        </button>
+        <button class="ghost" type="button" onclick={addVisit} disabled={!me || visitsLoading}>
+          Отметить посещение
+        </button>
+      </div>
 
-          <div class="reviews">
-            <div class="panelTitle">Отзывы</div>
-            {#if reviewsError}
-              <div class="error">{reviewsError}</div>
-            {/if}
+      <div class="sheetBody">
+        <div class="sectionTitle">Отзывы</div>
 
-            {#if reviewsLoading}
-              <div class="empty">Загрузка…</div>
-            {:else}
-              {#if reviews.length === 0}
-                <div class="empty">Пока нет отзывов.</div>
-              {:else}
-                <div class="reviewList">
-                  {#each reviews as r (r.id)}
-                    <div class="review">
-                      <div class="reviewTop">
-                        <div class="reviewMeta">
-                          <div class="name">{r.user.email}</div>
-                          <div class="meta">Оценка: {r.rating} / 5</div>
-                        </div>
-                        {#if me && (me.role === 'ADMIN' || me.id === r.user.id)}
-                          <button class="danger" on:click={() => deleteReview(r.id)}>Удалить</button>
-                        {/if}
-                      </div>
-                      <div class="addr">{r.text}</div>
-                    </div>
-                  {/each}
-                </div>
-              {/if}
+        {#if reviewsError}
+          <div class="toast" role="alert">{reviewsError}</div>
+        {/if}
 
-              <div class="reviewForm">
-                <div class="meta">Добавить отзыв</div>
-                {#if me}
-                  <div class="row">
-                    <label>
-                      Оценка
-                      <input type="number" min="1" max="5" step="1" bind:value={reviewRating} />
-                    </label>
-                  </div>
-                  <label>
-                    Текст
-                    <textarea rows="3" bind:value={reviewText}></textarea>
-                  </label>
-                  <button disabled={reviewsLoading || reviewText.trim().length === 0} on:click={submitReview}>
-                    Отправить
-                  </button>
-                {:else}
-                  <div class="empty">Войди, чтобы оставить отзыв.</div>
-                {/if}
-              </div>
-            {/if}
-          </div>
+        {#if reviewsLoading}
+          <div class="muted">Загрузка…</div>
         {:else}
-          <div class="empty">Нажми на место на карте или в списке.</div>
+          {#if reviews.length === 0}
+            <div class="muted">Пока нет отзывов.</div>
+          {:else}
+            <div class="reviewList">
+              {#each reviews as r (r.id)}
+                <div class="review">
+                  <div class="reviewTop">
+                    <div>
+                      <div class="name">{r.user.email}</div>
+                      <div class="meta">Оценка: {r.rating} / 5</div>
+                    </div>
+                    {#if me && (me.role === 'ADMIN' || me.id === r.user.id)}
+                      <button class="danger" type="button" onclick={() => deleteReview(r.id)}>Удалить</button>
+                    {/if}
+                  </div>
+                  <div class="addr">{r.text}</div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+
+          <div class="reviewForm">
+            {#if me}
+              <div class="row">
+                <label class="field">
+                  <span>Оценка</span>
+                  <input type="number" min="1" max="5" step="1" bind:value={reviewRating} />
+                </label>
+              </div>
+              <label class="field">
+                <span>Текст</span>
+                <textarea rows="3" bind:value={reviewText}></textarea>
+              </label>
+              <button
+                class="primary"
+                type="button"
+                disabled={reviewsLoading || reviewText.trim().length === 0}
+                onclick={submitReview}
+              >
+                Отправить
+              </button>
+            {:else}
+              <div class="muted">Войди, чтобы оставить отзыв.</div>
+            {/if}
+          </div>
         {/if}
       </div>
-    </aside>
-  </main>
+    </section>
+  {/if}
 </div>
 
 <style>
-  .page {
+  :global(body) {
+    margin: 0;
+  }
+
+  .app {
     height: 100vh;
-    display: grid;
-    grid-template-rows: auto 1fr;
-    background: #0b1020;
-    color: #e5e7eb;
+    width: 100vw;
+    position: relative;
+    overflow: hidden;
+    background: #070b14;
+    color: #e7eaf2;
+    font-family: 'IBM Plex Sans', system-ui, -apple-system, Segoe UI, sans-serif;
   }
-  .topbar {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 16px;
-    padding: 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+
+  .map {
+    position: absolute;
+    inset: 0;
   }
-  .h1 {
-    font-weight: 800;
+
+  .top {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 12px;
+    z-index: 20;
+    display: grid;
+    gap: 10px;
+    pointer-events: none;
+  }
+
+  .brand {
+    pointer-events: auto;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .logo {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
     letter-spacing: 0.2px;
     font-size: 18px;
   }
-  .h2 {
-    margin-top: 2px;
+
+  .sub {
     opacity: 0.75;
-    font-size: 13px;
+    font-size: 12px;
   }
-  .controls {
+
+  .pill {
+    pointer-events: auto;
+    background: rgba(12, 16, 30, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 18px;
+    padding: 10px;
+    backdrop-filter: blur(12px);
+    box-shadow:
+      0 18px 45px rgba(0, 0, 0, 0.35),
+      0 1px 0 rgba(255, 255, 255, 0.06) inset;
     display: grid;
     gap: 10px;
-    justify-items: end;
   }
-  .row {
+
+  .segmented {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .segmented button {
+    border-radius: 999px;
+    padding: 8px 10px;
+    font-size: 13px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    color: #e7eaf2;
+    cursor: pointer;
+  }
+
+  .segmented button.active {
+    background: rgba(56, 189, 248, 0.16);
+    border-color: rgba(56, 189, 248, 0.35);
+  }
+
+  .controls {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
-    justify-content: flex-end;
+    align-items: center;
   }
-  button {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    color: #e5e7eb;
+
+  .field {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
+    align-items: center;
     padding: 8px 10px;
-    border-radius: 10px;
-    cursor: pointer;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .field span {
+    font-size: 12px;
+    opacity: 0.8;
+  }
+
+  input[type='range'] {
+    width: 160px;
+  }
+
+  .primary,
+  .ghost,
+  .danger {
+    border-radius: 14px;
+    padding: 9px 12px;
     font-size: 13px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    background: rgba(255, 255, 255, 0.06);
+    color: #e7eaf2;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
   }
-  button.selected {
-    background: rgba(79, 70, 229, 0.35);
-    border-color: rgba(79, 70, 229, 0.8);
+
+  .primary {
+    background: rgba(56, 189, 248, 0.18);
+    border-color: rgba(56, 189, 248, 0.35);
   }
+
+  .ghost.link {
+    user-select: none;
+  }
+
+  .danger {
+    background: rgba(239, 68, 68, 0.18);
+    border-color: rgba(239, 68, 68, 0.35);
+  }
+
   button:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
-  label {
-    display: grid;
-    gap: 6px;
-    font-size: 12px;
-    opacity: 0.9;
+
+  .account {
+    display: inline-flex;
+    gap: 8px;
+    margin-left: auto;
   }
-  input {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    color: #e5e7eb;
-    padding: 8px 10px;
-    border-radius: 10px;
-    width: 120px;
-  }
-  .error {
-    padding: 10px 16px;
+
+  .toast {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 118px;
+    z-index: 30;
+    padding: 10px 12px;
+    border-radius: 14px;
     background: rgba(239, 68, 68, 0.18);
-    border-bottom: 1px solid rgba(239, 68, 68, 0.25);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    backdrop-filter: blur(10px);
+    pointer-events: auto;
   }
-  .content {
+
+  .scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 25;
+    background: rgba(0, 0, 0, 0.35);
+    border: 0;
+    cursor: pointer;
+  }
+
+  .drawer {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    z-index: 26;
+    max-height: 55vh;
+    overflow: hidden;
+    border-radius: 18px;
+    background: rgba(12, 16, 30, 0.86);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
     display: grid;
-    grid-template-columns: 1fr 360px;
-    min-height: 0;
+    grid-template-rows: auto 1fr;
   }
-  .map {
-    min-height: 0;
+
+  .drawerHead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
-  .side {
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
-    padding: 12px;
-    display: grid;
-    gap: 12px;
+
+  .drawerTitle {
+    font-weight: 600;
+  }
+
+  .drawerBody {
+    padding: 10px;
     overflow: auto;
   }
-  .panel {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
-    padding: 12px;
-    display: grid;
-    gap: 10px;
-  }
-  .panelTitle {
-    font-weight: 700;
-  }
-  .panelSubtitle {
-    opacity: 0.75;
-    font-size: 12px;
-    margin-top: -6px;
-  }
+
   .list {
     display: grid;
     gap: 8px;
   }
-  .list > button {
+
+  .list button {
     text-align: left;
-    display: grid;
-    gap: 2px;
+    border-radius: 14px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #e7eaf2;
+    cursor: pointer;
   }
+
+  .list button.selected {
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.28);
+  }
+
   .name {
-    font-weight: 650;
+    font-weight: 600;
   }
+
   .meta {
-    opacity: 0.8;
+    opacity: 0.78;
     font-size: 12px;
   }
+
   .addr {
-    opacity: 0.7;
+    opacity: 0.88;
     font-size: 12px;
+    line-height: 1.35;
   }
-  .empty {
+
+  .muted {
     opacity: 0.75;
     font-size: 13px;
   }
-  .selected {
-    display: grid;
-    gap: 6px;
-  }
-  .actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 6px;
-  }
 
-  .linkBtn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 10px 12px;
-    border-radius: 12px;
-    text-decoration: none;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    color: #e5e7eb;
-    font-size: 13px;
-  }
-
-  textarea {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    color: #e5e7eb;
-    padding: 10px 12px;
-    border-radius: 12px;
-    resize: vertical;
-  }
-
-  .reviews {
-    margin-top: 10px;
+  .sheet {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    z-index: 24;
+    border-radius: 18px;
+    background: rgba(12, 16, 30, 0.86);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+    padding: 12px;
     display: grid;
     gap: 10px;
+    max-height: 52vh;
+    overflow: auto;
+  }
+
+  .sheetTop {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    gap: 10px;
+  }
+
+  .sheetTitle {
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .sheetMeta {
+    opacity: 0.78;
+    font-size: 12px;
+  }
+
+  .sheetActions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .sheetBody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .sectionTitle {
+    font-weight: 600;
+    opacity: 0.9;
   }
 
   .reviewList {
     display: grid;
-    gap: 10px;
+    gap: 8px;
   }
 
   .review {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 12px;
     padding: 10px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     display: grid;
     gap: 6px;
   }
@@ -984,13 +1157,32 @@
     align-items: start;
   }
 
-  .danger {
-    background: rgba(239, 68, 68, 0.18);
-    border: 1px solid rgba(239, 68, 68, 0.35);
+  textarea,
+  input[type='number'] {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 14px;
+    color: #e7eaf2;
+    padding: 10px 12px;
+  }
+
+  textarea {
+    resize: vertical;
   }
 
   .reviewForm {
     display: grid;
     gap: 8px;
+  }
+
+  @media (max-width: 720px) {
+    input[type='range'] {
+      width: 120px;
+    }
+
+    .account {
+      width: 100%;
+      justify-content: flex-start;
+    }
   }
 </style>
