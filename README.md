@@ -1,154 +1,151 @@
-# GeoGuide
+# 🗺️ GeoGuide
 
 GeoGuide — веб-приложение с картой, которое показывает интересные места рядом с пользователем.
 
-Что умеет:
+## ✨ Возможности
 
-- искать места рядом (кафе, музеи, парки, достопримечательности);
-- фильтровать типы мест (можно выбрать несколько или выключить все);
-- открывать карточку места, строить маршрут;
-- после входа: избранное, история посещении, отзывы.
+- 🔎 Поиск мест рядом (кафе, музеи, парки, достопримечательности)
+- 🧩 Фильтры по типам (можно выбрать несколько или выключить все)
+- 🧭 Карточка места и маршрут
+- ⭐ После входа: избранное, история посещении, отзывы
 
-Стек:
+## 🧰 Технологии
 
 - **Frontend**: SvelteKit + MapLibre GL
 - **Backend**: Node.js (Express) + Prisma (SQLite)
-- **Внешние API**: Overpass (OSM) для поиска мест, OSRM для маршрутов
+- **Внешние API**: Overpass (OSM), OSRM
 
-## Документация
+## 📚 Документация
 
 - `docs/design.md` — часть 1 (проектирование)
 - `docs/AI_REFLECTION.md` — часть 3 (рефлексия по AI)
 
-## Быстрый старт (если ты только поставил VS Code)
+## 🗂️ Структура проекта
 
-Ниже инструкция максимально "с нуля".
-
-### 1) Установи нужные программы
-
-1. **VS Code**
-
-Скачать: https://code.visualstudio.com/
-
-2. **Node.js (LTS)**
-
-Скачать: https://nodejs.org/
-
-После установки проверь в терминале:
-
-```bash
-node -v
-npm -v
+```text
+.
+├── backend/              # API (Express + Prisma)
+│   ├── prisma/           # schema.prisma + миграции
+│   ├── src/              # роуты, сервисы (overpass/osrm), middleware
+│   ├── .env.example
+│   └── package.json
+├── frontend/             # UI (SvelteKit + MapLibre)
+│   ├── src/
+│   ├── .env.example
+│   └── package.json
+├── docs/                 # design.md + AI_REFLECTION.md + images/
+├── package.json          # npm workspaces + общие команды
+└── package-lock.json
 ```
 
-3. **Git**
+## 📦 Установка
 
-Скачать: https://git-scm.com/
+> Ниже команды для терминала. Можно использовать Terminal в VS Code.
 
-Проверка:
+### 1) Клонировать репозиторий
 
 ```bash
-git --version
+git clone https://github.com/filage/DL2026_Spring_FSD_Dragun.git
 ```
 
-### 2) Склонируй проект и открой в VS Code
-
-1. На GitHub нажми **Code** -> **HTTPS** и скопируй ссылку.
-2. Открой VS Code.
-3. Открой терминал в VS Code:
-
-`Terminal` -> `New Terminal`
-
-4. В терминале выполни:
+### 2) Перейти в папку проекта
 
 ```bash
-git clone <ССЫЛКА_НА_РЕПОЗИТОРИИ>
 cd DL2026_Spring_FSD_Dragun
-code .
 ```
 
-Если проект уже открыт, `code .` не нужен.
-
-### 3) Установи зависимости
-
-В терминале VS Code, из корня проекта:
+### 3) Установить зависимости
 
 ```bash
 npm install
 ```
 
-### 4) Настрой переменные окружения
+### 4) Настроить переменные окружения
 
-#### Backend
+#### Backend (.env)
 
-1. Открой папку `backend`
-2. Скопируй файл `backend/.env.example` и переименуй копию в `backend/.env`
-3. Заполни минимум:
+PowerShell (Windows):
 
-- `JWT_SECRET` — любая длинная строка (например 30+ символов)
-
-Остальное можно оставить как в примере:
-
-- `DATABASE_URL="file:./prisma/dev.db"`
-- `PORT=5174`
-
-#### Frontend (опционально)
-
-1. Скопируй `frontend/.env.example` в `frontend/.env`
-2. Обычно можно не менять, но если нужно:
-
-- `PUBLIC_API_BASE_URL=http://localhost:5174/api`
-
-### 5) Подними базу данных (Prisma)
-
-Из корня проекта:
-
-```bash
-npm run prisma:migrate -w backend
-npm run prisma:generate -w backend
+```powershell
+Copy-Item backend/.env.example backend/.env
 ```
 
-Это создаст SQLite БД и сгенерирует Prisma Client.
+Bash (macOS/Linux/Git Bash):
 
-### 6) Запусти проект
+```bash
+cp backend/.env.example backend/.env
+```
 
-Запуск фронтенда и бэкенда вместе:
+Открой `backend/.env` и заполни минимум:
+
+- `JWT_SECRET` (любой длинный секрет)
+
+#### Frontend (.env) (опционально)
+
+PowerShell (Windows):
+
+```powershell
+Copy-Item frontend/.env.example frontend/.env
+```
+
+Bash (macOS/Linux/Git Bash):
+
+```bash
+cp frontend/.env.example frontend/.env
+```
+
+### 5) Prisma: сгенерировать клиент и применить миграции (SQLite)
+
+```bash
+npm run prisma:generate -w backend
+npm run prisma:migrate -w backend
+```
+
+## 🚀 Запуск
+
+### Режим разработки (frontend + backend)
 
 ```bash
 npm run dev
 ```
 
-Открой в браузере:
+Открой:
 
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:5174/api
 
-## Полезные команды
+### Запуск по отдельности
 
-- Проверка фронтенда (типы/сборка Svelte):
+```bash
+npm run dev:backend
+npm run dev:frontend
+```
+
+### Продакшн сборка
+
+```bash
+npm run build -w backend
+npm run build -w frontend
+```
+
+## 🧪 Полезные команды
 
 ```bash
 npm run check -w frontend
 ```
 
-- Сборка бэкенда (TypeScript):
+## 🛠️ Частые проблемы
 
-```bash
-npm run build -w backend
-```
+1) **`node` / `npm` не находятся**
 
-## Частые проблемы
-
-1) **`npm install` не работает / нет команды `node`**
-
-- Проверь, что Node.js установлен.
-- Перезапусти VS Code (иногда PATH обновляется только после перезапуска).
+- Установи Node.js (LTS) с https://nodejs.org/
+- Перезапусти VS Code
 
 2) **Prisma ругается на `DATABASE_URL`**
 
-- Проверь, что у тебя есть файл `backend/.env`.
-- Проверь строку `DATABASE_URL="file:./prisma/dev.db"`.
+- Проверь, что создан `backend/.env`
+- Проверь строку `DATABASE_URL="file:./prisma/dev.db"`
 
-3) **Не грузятся места и в консоли Overpass ошибки**
+3) **Иногда не грузятся места (Overpass)**
 
-Overpass — внешний сервис OSM, иногда работает нестабильно. В проекте добавлены ретраи, несколько эндпоинтов и кеш, но редкие сбои все равно возможны.
+Overpass — внешний сервис OSM и иногда он нестабилен. В проекте есть кеш/ретраи/несколько эндпоинтов, но редкие сбои все равно возможны.
