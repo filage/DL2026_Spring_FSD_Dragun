@@ -57,6 +57,43 @@
   let reviewRating = 5;
   let reviewText = '';
 
+  type FavoriteItem = {
+    id: string;
+    placeId: string;
+    createdAt: string;
+    place: {
+      id: string;
+      name: string;
+      category: string;
+      lat: number;
+      lng: number;
+      address: string | null;
+    };
+  };
+
+  type VisitItem = {
+    id: string;
+    placeId: string;
+    visitedAt: string;
+    notes: string | null;
+    place: {
+      id: string;
+      name: string;
+      category: string;
+      lat: number;
+      lng: number;
+      address: string | null;
+    };
+  };
+
+  let favoritesLoading = false;
+  let favoritesError: string | null = null;
+  let favorites: FavoriteItem[] = [];
+
+  let visitsLoading = false;
+  let visitsError: string | null = null;
+  let visits: VisitItem[] = [];
+
   const apiBase = env.PUBLIC_API_BASE_URL || DEFAULT_API_BASE_URL;
   const token = env.PUBLIC_MAPBOX_ACCESS_TOKEN;
 
@@ -68,6 +105,109 @@
         { enableHighAccuracy: true, timeout: 10_000 }
       );
     });
+  }
+
+  async function loadFavorites() {
+    if (!me) {
+      favorites = [];
+      return;
+    }
+    favoritesLoading = true;
+    favoritesError = null;
+    try {
+      const r = await apiFetch(apiBase, '/favorites');
+      const json = await r.json();
+      if (!r.ok || !json.ok) throw new Error(json.error ?? 'Failed to load favorites');
+      favorites = json.favorites as FavoriteItem[];
+    } catch (e) {
+      favoritesError = e instanceof Error ? e.message : 'Unknown error';
+      favorites = [];
+    } finally {
+      favoritesLoading = false;
+    }
+  }
+
+  async function loadVisits() {
+    if (!me) {
+      visits = [];
+      return;
+    }
+    visitsLoading = true;
+    visitsError = null;
+    try {
+      const r = await apiFetch(apiBase, '/visits');
+      const json = await r.json();
+      if (!r.ok || !json.ok) throw new Error(json.error ?? 'Failed to load visits');
+      visits = json.visits as VisitItem[];
+    } catch (e) {
+      visitsError = e instanceof Error ? e.message : 'Unknown error';
+      visits = [];
+    } finally {
+      visitsLoading = false;
+    }
+  }
+
+  function isSelectedFavorite() {
+    if (!selected) return false;
+    return favorites.some((f) => f.placeId === selected!.id);
+  }
+
+  async function toggleFavorite() {
+    if (!selected) return;
+    if (!me) {
+      favoritesError = 'Нужно войти, чтобы использовать избранное.';
+      return;
+    }
+
+    favoritesLoading = true;
+    favoritesError = null;
+    try {
+      const isFav = isSelectedFavorite();
+      if (isFav) {
+        const r = await apiFetch(apiBase, `/favorites/${encodeURIComponent(selected.id)}`, {
+          method: 'DELETE'
+        });
+        const json = await r.json();
+        if (!r.ok || !json.ok) throw new Error(json.error ?? 'Failed to remove favorite');
+      } else {
+        const r = await apiFetch(apiBase, '/favorites', {
+          method: 'POST',
+          body: JSON.stringify({ placeId: selected.id })
+        });
+        const json = await r.json();
+        if (!r.ok || !json.ok) throw new Error(json.error ?? 'Failed to add favorite');
+      }
+
+      await loadFavorites();
+    } catch (e) {
+      favoritesError = e instanceof Error ? e.message : 'Unknown error';
+    } finally {
+      favoritesLoading = false;
+    }
+  }
+
+  async function addVisit() {
+    if (!selected) return;
+    if (!me) {
+      visitsError = 'Нужно войти, чтобы отмечать посещения.';
+      return;
+    }
+
+    visitsLoading = true;
+    visitsError = null;
+    try {
+      const r = await apiFetch(apiBase, '/visits', {
+        method: 'POST',
+        body: JSON.stringify({ placeId: selected.id })
+      });
+      const json = await r.json();
+      if (!r.ok || !json.ok) throw new Error(json.error ?? 'Failed to add visit');
+      await loadVisits();
+    } catch (e) {
+      visitsError = e instanceof Error ? e.message : 'Unknown error';
+    } finally {
+      visitsLoading = false;
+    }
   }
 
   function ensureMap() {
@@ -330,6 +470,13 @@
   });
 
   async function loadReviews(placeId: string) {
+    // Ensure cached in backend DB for reviews/favorites.
+    try {
+      await fetch(`${apiBase}/places/${encodeURIComponent(placeId)}`);
+    } catch {
+      // ignore
+    }
+
     reviewsLoading = true;
     reviewsError = null;
     try {
@@ -391,6 +538,12 @@
   $: if (userLat != null && userLng != null) {
     // keep marker synced
     if (map) setUserMarker(userLat, userLng);
+  }
+
+  $: if (me) {
+    // keep user panels in sync when auth changes
+    void loadFavorites();
+    void loadVisits();
   }
 </script>
 
@@ -487,6 +640,80 @@
       </div>
 
       <div class="panel">
+        <div class="panelTitle">Избранное</div>
+        {#if favoritesError}
+          <div class="error">{favoritesError}</div>
+        {/if}
+        {#if !me}
+          <div class="empty">Войди, чтобы видеть избранное.</div>
+        {:else if favoritesLoading}
+          <div class="empty">Загрузка…</div>
+        {:else}
+          {#if favorites.length === 0}
+            <div class="empty">Пока пусто.</div>
+          {:else}
+            <div class="list">
+              {#each favorites as f (f.id)}
+                <button
+                  class:selected={selected?.id === f.place.id}
+                  on:click={() =>
+                    selectPlace({
+                      id: f.place.id,
+                      name: f.place.name,
+                      category: 'cafe',
+                      coordinates: { lat: f.place.lat, lng: f.place.lng },
+                      distanceMeters: 0,
+                      address: f.place.address
+                    })}
+                >
+                  <div class="name">{f.place.name}</div>
+                  {#if f.place.address}
+                    <div class="addr">{f.place.address}</div>
+                  {/if}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        {/if}
+      </div>
+
+      <div class="panel">
+        <div class="panelTitle">История</div>
+        {#if visitsError}
+          <div class="error">{visitsError}</div>
+        {/if}
+        {#if !me}
+          <div class="empty">Войди, чтобы видеть историю.</div>
+        {:else if visitsLoading}
+          <div class="empty">Загрузка…</div>
+        {:else}
+          {#if visits.length === 0}
+            <div class="empty">Пока пусто.</div>
+          {:else}
+            <div class="list">
+              {#each visits as v (v.id)}
+                <button
+                  class:selected={selected?.id === v.place.id}
+                  on:click={() =>
+                    selectPlace({
+                      id: v.place.id,
+                      name: v.place.name,
+                      category: 'cafe',
+                      coordinates: { lat: v.place.lat, lng: v.place.lng },
+                      distanceMeters: 0,
+                      address: v.place.address
+                    })}
+                >
+                  <div class="name">{v.place.name}</div>
+                  <div class="meta">{new Date(v.visitedAt).toLocaleString()}</div>
+                </button>
+              {/each}
+            </div>
+          {/if}
+        {/if}
+      </div>
+
+      <div class="panel">
         <div class="panelTitle">Выбрано</div>
         {#if selected}
           <div class="selected">
@@ -497,6 +724,10 @@
             {/if}
             <div class="actions">
               <button on:click={speakSelected}>Гид (аудио)</button>
+              <button on:click={toggleFavorite} disabled={!me || favoritesLoading}>
+                {isSelectedFavorite() ? 'Убрать из избранного' : 'В избранное'}
+              </button>
+              <button on:click={addVisit} disabled={!me || visitsLoading}>Отметить посещение</button>
             </div>
           </div>
 
